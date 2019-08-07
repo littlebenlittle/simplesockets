@@ -5,7 +5,7 @@ from socket import socket, AF_INET, SOCK_STREAM
 from selectors import DefaultSelector, EVENT_READ, EVENT_WRITE
 from types import SimpleNamespace
 
-POLL_INERVAL = 0.9
+POLL_INTERVAL = 0.9
 MSGLEN = 80
 
 
@@ -28,7 +28,7 @@ def main():
 
 
 def handle_connection(sel):
-    for key, mask in sel.select(timeout=POLL_INERVAL):
+    for key, mask in sel.select(timeout=POLL_INTERVAL):
         if mask & EVENT_READ:
             msg = key.fileobj.recv(MSGLEN)
             print(f'Received msg: {msg}')
