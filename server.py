@@ -48,7 +48,7 @@ def service_connection(sock, addr):
                     handle_write(sock, data)
         return data.result
     except (BrokenPipeError, ConnectionResetError):
-        print(f'connection to {addr} closed by client')
+        print(f'connection to {addr} closed by remote')
 
 
 def handle_read(sock, data):
@@ -59,7 +59,7 @@ def handle_read(sock, data):
 
 def handle_write(sock, data):
     bytes_sent = sock.send(data.buf)
-    data.buf = data.buf[:bytes_sent]
+    data.buf = data.buf[bytes_sent:]
 
 
 if __name__ == '__main__':
