@@ -1,50 +1,45 @@
 #!/usr/bin/python
 
+import os
 import sys
 from socket import socket, AF_INET, SOCK_STREAM
 from selectors import DefaultSelector, EVENT_READ, EVENT_WRITE
 from types import SimpleNamespace
 
 POLL_INTERVAL = 0.9
-MSGLEN = 80
+MSGLEN = 1028
+DEFAULT_ADDR = '0.0.0.0:9000'
 
 
 def main():
-    sel = DefaultSelector()
-    addr_components = sys.argv[1].split(':')
+    addr_components = os.environ.get('ADDR', DEFAULT_ADDR).split(':')
     addr = addr_components[0], int(addr_components[1])
     msgs = [bytes(msg, 'utf8') for msg in sys.stdin]
-    msgs.reverse()
+    payload = b''.join(msgs)
+    sel = DefaultSelector()
     with socket(AF_INET, SOCK_STREAM) as sock:
         sock.connect(addr)
         sock.setblocking(False)
-        data = SimpleNamespace(msgs=msgs, inb=b'', outb=b'START')
+        data = SimpleNamespace(buf=payload, proceed=True)
         sel.register(sock, EVENT_READ | EVENT_WRITE, data)
-        keep_going = True
-        while keep_going:
-            keep_going = handle_connection(sel)
+        while data.proceed:
+            for key, mask in sel.select(timeout=POLL_INTERVAL):
+                if mask & EVENT_READ:
+                    handle_read(sock, data)
+                if mask & EVENT_WRITE:
+                    handle_write(sock, data)
 
 
-def handle_connection(sel):
-    for key, mask in sel.select(timeout=POLL_INTERVAL):
-        if mask & EVENT_READ:
-            msg = key.fileobj.recv(MSGLEN)
-            if msg:
-                key.data.inb += msg
-                if msg == b'DONE':
-                    print('exiting')
-                    return False
-        if mask & EVENT_WRITE:
-            if len(key.data.msgs) == 0:
-                key.fileobj.sendall(b'DONE')
-                return False
-            if key.data.inb == b'OK':
-                print('got the OK')
-                key.data.inb = b''
-                key.data.outb = key.data.msgs.pop()
-            bytes_sent = key.fileobj.send(key.data.outb)
-            key.data.outb = key.data.outb[bytes_sent:]
-    return True
+def handle_read(sock, data):
+    msg = sock.recv(MSGLEN)
+    print(msg.decode('utf8'))
+    data.proceed = False
+
+
+def handle_write(sock, data):
+    if len(data.buf) > 0:
+        bytes_sent = sock.send(data.buf)
+        data.buf = data.buf[bytes_sent:]
 
 
 if __name__ == '__main__':
