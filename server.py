@@ -6,10 +6,8 @@ from io import StringIO
 from socket import socket, AF_INET, SOCK_STREAM
 from selectors import DefaultSelector, EVENT_READ, EVENT_WRITE
 from types import SimpleNamespace
-
-POLL_INTERVAL = 0.1
-MSGLEN = 80
-DEFAULT_ADDR = '0.0.0.0:9000'
+from conf import (POLL_INTERVAL, MSGLEN,
+                  DEFAULT_ADDR, ENCODING)
 
 
 def main():
@@ -28,7 +26,7 @@ def start_server(addr):
         print(f'listening on {addr}')
         while True:
             rsock, raddr = lsock.accept()  # block until new connection
-            print(f'accepted connection from {raddr}')
+            # print(f'accepted connection from {raddr}')
             pid = os.fork()
             if pid == 0:
                 service_connection(rsock, raddr)
@@ -53,24 +51,29 @@ def service_connection(sock, addr):
                     handle_write(sock, data)
         return data.result
     except (BrokenPipeError, ConnectionResetError):
-        print(f'connection to {addr} closed by remote')
+        # print(f'connection to {addr} closed by remote')
+        pass
 
 
 def handle_read(sock, data):
     msg = sock.recv(MSGLEN)
-    print(f'recieved message from {data.addr}: {msg}')
+    # print(f'recieved message from {data.addr}: {msg}')
     try:
-        tmp = sys.stdout
-        outp = sys.stdout = StringIO()
-        exec(msg, data.g)
-        sys.stdout = tmp
-        result = outp.getvalue()
-        if len(result) > 0:
-            print(f'{result}')
-        data.buf += bytes(result+'\n', 'utf8')
+        for line in msg.split(b'\n'):
+            if line in (b'\n', b'', b'\r', b'\r\n'):
+                continue
+            tmp = sys.stdout
+            outp = sys.stdout = StringIO()
+            print('>>> ' + line.decode(ENCODING).strip())
+            exec(line, data.g)
+            sys.stdout = tmp
+            result = outp.getvalue()
+            if result not in ('\n', '', '\r', '\r\n'):
+                print(f'{result}'.strip('\n'))
+            data.buf += bytes(result+'\n', ENCODING)
     except Exception as e:
         print(str(e))
-        data.buf = bytes(str(e.args), 'utf8')
+        data.buf = bytes(str(e.args), ENCODING)
 
 
 def handle_write(sock, data):

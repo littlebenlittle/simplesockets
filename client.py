@@ -5,16 +5,13 @@ import sys
 from socket import socket, AF_INET, SOCK_STREAM
 from selectors import DefaultSelector, EVENT_READ, EVENT_WRITE
 from types import SimpleNamespace
-
-POLL_INTERVAL = 0.9
-MSGLEN = 1028
-DEFAULT_ADDR = '0.0.0.0:9000'
-
+from conf import (POLL_INTERVAL, MSGLEN,
+                  DEFAULT_ADDR, ENCODING)
 
 def main():
     addr_components = os.environ.get('ADDR', DEFAULT_ADDR).split(':')
     addr = addr_components[0], int(addr_components[1])
-    msgs = [bytes(msg, 'utf8') for msg in sys.stdin]
+    msgs = [bytes(msg, ENCODING) for msg in sys.stdin]
     payload = b''.join(msgs)
     sel = DefaultSelector()
     with socket(AF_INET, SOCK_STREAM) as sock:
@@ -32,7 +29,7 @@ def main():
 
 def handle_read(sock, data):
     msg = sock.recv(MSGLEN)
-    print(msg.decode('utf8'))
+    print(msg.decode(ENCODING))
     data.proceed = False
 
 
